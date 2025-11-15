@@ -1,1 +1,9 @@
-// TODO: Build PDA transition rules for dot-bracket grammars, including stack symbol definitions and acceptance states.
+#include "automata/builders/Builders.hpp"
+
+namespace automata {
+
+Pda PdaBuilder::build() const {
+    return Pda{{PdaRule{'('}, PdaRule{')'}}};
+}
+
+}  // namespace automata

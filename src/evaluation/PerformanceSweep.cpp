@@ -1,1 +1,9 @@
-// TODO: Implement performance benchmarking utilities to compare NFA, DFA, EFA, and PDA execution characteristics.
+#include "evaluation/EvaluationHarness.hpp"
+
+#include <chrono>
+
+namespace automata {
+
+// Placeholder: actual benchmarks can be filled later using EvaluationHarness datasets.
+
+}  // namespace automata
