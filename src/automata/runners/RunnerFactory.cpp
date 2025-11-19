@@ -2,27 +2,44 @@
 
 namespace automata {
 
-RunnerPtr RunnerFactory::create(const AutomatonPlan& plan, const RegexParser& parser) const {
+RunnerPtr RunnerFactory::create(const AutomatonPlan& plan, const RegexParser& parser, Snapshot* snapshot) const {
     NfaBuilder nfaBuilder(parser);
     switch (plan.kind) {
         case AutomatonKind::Nfa: {
             auto nfa = nfaBuilder.build(plan.spec.pattern);
+            if (snapshot) {
+                snapshot->kind = AutomatonKind::Nfa;
+                snapshot->automaton = nfa;
+            }
             return std::make_unique<NfaRunner>(std::move(nfa), plan.spec.trace);
         }
         case AutomatonKind::Dfa: {
             auto nfa = nfaBuilder.build(plan.spec.pattern);
             DfaBuilder dfaBuilder;
             auto dfa = dfaBuilder.build(nfa);
+            if (snapshot) {
+                snapshot->kind = AutomatonKind::Dfa;
+                snapshot->automaton = dfa;
+            }
             return std::make_unique<DfaRunner>(std::move(dfa), plan.spec.trace);
         }
         case AutomatonKind::Efa: {
             EfaBuilder builder;
             auto efa = builder.build(plan.spec.pattern, plan.spec.mismatchBudget);
+            if (snapshot) {
+                snapshot->kind = AutomatonKind::Efa;
+                snapshot->automaton = efa;
+            }
             return std::make_unique<EfaRunner>(std::move(efa), plan.spec.trace);
         }
         case AutomatonKind::Pda: {
             PdaBuilder builder;
-            return std::make_unique<PdaRunner>(builder.build(), plan.spec.trace);
+            auto pda = builder.build();
+            if (snapshot) {
+                snapshot->kind = AutomatonKind::Pda;
+                snapshot->automaton = pda;
+            }
+            return std::make_unique<PdaRunner>(std::move(pda), plan.spec.trace);
         }
     }
     return nullptr;
