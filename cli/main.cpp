@@ -3,7 +3,9 @@
 #include <cctype>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 #include <vector>
 #if defined(_WIN32)
@@ -110,11 +112,159 @@ std::string highlightMatches(const std::string& sequence,
     return result;
 }
 
+std::string jsonEscape(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size() + 8);
+    for (unsigned char c : value) {
+        switch (c) {
+            case '\"':
+                escaped.append("\\\"");
+                break;
+            case '\\':
+                escaped.append("\\\\");
+                break;
+            case '\b':
+                escaped.append("\\b");
+                break;
+            case '\f':
+                escaped.append("\\f");
+                break;
+            case '\n':
+                escaped.append("\\n");
+                break;
+            case '\r':
+                escaped.append("\\r");
+                break;
+            case '\t':
+                escaped.append("\\t");
+                break;
+            default:
+                if (c < 0x20 || c > 0x7E) {
+                    char buffer[7];
+                    std::snprintf(buffer, sizeof(buffer), "\\u%04x", c);
+                    escaped.append(buffer);
+                } else {
+                    escaped.push_back(static_cast<char>(c));
+                }
+        }
+    }
+    return escaped;
+}
+
+std::string charToJson(char c) {
+    return jsonEscape(std::string(1, c));
+}
+
+std::string edgeTypeToString(EdgeType type) {
+    switch (type) {
+        case EdgeType::Epsilon:
+            return "epsilon";
+        case EdgeType::Literal:
+            return "literal";
+        case EdgeType::Any:
+            return "any";
+        case EdgeType::CharClass:
+            return "char_class";
+    }
+    return "unknown";
+}
+
+std::string serializeNfa(const Nfa& nfa) {
+    std::ostringstream out;
+    out << "{\"kind\":\"NFA\",\"start\":" << nfa.start << ",\"accept\":" << nfa.accept << ",\"states\":[";
+    for (std::size_t i = 0; i < nfa.states.size(); ++i) {
+        const auto& state = nfa.states[i];
+        out << "{\"id\":" << i << ",\"accept\":" << (state.accept ? "true" : "false") << ",\"edges\":[";
+        for (std::size_t j = 0; j < state.edges.size(); ++j) {
+            const auto& edge = state.edges[j];
+            out << "{\"to\":" << edge.to << ",\"type\":\"" << edgeTypeToString(edge.type) << "\"";
+            if (edge.type == EdgeType::Literal) {
+                out << ",\"literal\":\"" << charToJson(edge.literal) << "\"";
+            } else if (edge.type == EdgeType::CharClass) {
+                out << ",\"charClass\":\"" << jsonEscape(edge.charClass) << "\"";
+            }
+            out << "}";
+            if (j + 1 < state.edges.size()) {
+                out << ",";
+            }
+        }
+        out << "]}";
+        if (i + 1 < nfa.states.size()) {
+            out << ",";
+        }
+    }
+    out << "]}";
+    return out.str();
+}
+
+std::string serializeDfa(const Dfa& dfa) {
+    std::ostringstream out;
+    out << "{\"kind\":\"DFA\",\"start\":" << dfa.start << ",\"states\":[";
+    for (std::size_t i = 0; i < dfa.states.size(); ++i) {
+        const auto& state = dfa.states[i];
+        out << "{\"id\":" << i << ",\"accept\":" << (state.accept ? "true" : "false") << ",\"transitions\":[";
+        bool first = true;
+        for (int c = 0; c < 256; ++c) {
+            int target = state.next[c];
+            if (target < 0) {
+                continue;
+            }
+            if (!first) {
+                out << ",";
+            }
+            first = false;
+            out << "{\"code\":" << c << ",\"symbol\":\"" << charToJson(static_cast<char>(c)) << "\",\"to\":" << target
+                << "}";
+        }
+        out << "]}";
+        if (i + 1 < dfa.states.size()) {
+            out << ",";
+        }
+    }
+    out << "]}";
+    return out.str();
+}
+
+std::string serializeEfa(const Efa& efa) {
+    std::ostringstream out;
+    out << "{\"kind\":\"EFA\",\"pattern\":\"" << jsonEscape(efa.literalPattern) << "\",\"mismatchBudget\":"
+        << efa.mismatchBudget << "}";
+    return out.str();
+}
+
+std::string serializePda(const Pda& pda) {
+    std::ostringstream out;
+    out << "{\"kind\":\"PDA\",\"rules\":[";
+    for (std::size_t i = 0; i < pda.rules.size(); ++i) {
+        out << "{\"expected\":\"" << charToJson(pda.rules[i].expected) << "\"}";
+        if (i + 1 < pda.rules.size()) {
+            out << ",";
+        }
+    }
+    out << "]}";
+    return out.str();
+}
+
+std::string serializeSnapshot(const RunnerFactory::Snapshot& snapshot) {
+    switch (snapshot.kind) {
+        case AutomatonKind::Nfa:
+            return serializeNfa(std::get<Nfa>(snapshot.automaton));
+        case AutomatonKind::Dfa:
+            return serializeDfa(std::get<Dfa>(snapshot.automaton));
+        case AutomatonKind::Efa:
+            return serializeEfa(std::get<Efa>(snapshot.automaton));
+        case AutomatonKind::Pda:
+            return serializePda(std::get<Pda>(snapshot.automaton));
+    }
+    return "{}";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     PatternSpec spec;
     std::string inputPath;
+    std::string dumpAutomatonPath;
     const bool colorEnabled = colorOutputEnabled();
 
     for (int i = 1; i < argc; ++i) {
@@ -131,6 +281,8 @@ int main(int argc, char** argv) {
             spec.requestedMode = parseMode(argv[++i]);
         } else if (arg == "--dot-bracket") {
             spec.allowDotBracket = true;
+        } else if (arg == "--dump-automaton" && i + 1 < argc) {
+            dumpAutomatonPath = argv[++i];
         } else {
             std::cerr << "Unknown or incomplete argument: " << arg << "\n";
             return EXIT_FAILURE;
@@ -169,7 +321,23 @@ int main(int argc, char** argv) {
 
         RegexParser parser;
         RunnerFactory factory;
-        auto runner = factory.create(plan, parser);
+        RunnerFactory::Snapshot snapshot;
+        RunnerFactory::Snapshot* snapshotPtr = dumpAutomatonPath.empty() ? nullptr : &snapshot;
+        auto runner = factory.create(plan, parser, snapshotPtr);
+
+        if (!dumpAutomatonPath.empty()) {
+            auto json = serializeSnapshot(snapshot);
+            if (dumpAutomatonPath == "-") {
+                std::cout << json << "\n";
+            } else {
+                std::ofstream out(dumpAutomatonPath);
+                if (!out) {
+                    std::cerr << "Failed to open automaton dump path: " << dumpAutomatonPath << "\n";
+                    return EXIT_FAILURE;
+                }
+                out << json;
+            }
+        }
         Reporter reporter;
         MetricsAggregator metrics;
         TraceFormatter formatter;

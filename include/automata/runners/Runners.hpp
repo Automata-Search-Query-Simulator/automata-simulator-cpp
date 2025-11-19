@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 
 #include "AutomatonPlan.hpp"
 #include "IRunner.hpp"
@@ -51,7 +52,12 @@ class PdaRunner : public IRunner {
 
 class RunnerFactory {
   public:
-    RunnerPtr create(const AutomatonPlan& plan, const RegexParser& parser) const;
+    struct Snapshot {
+        AutomatonKind kind{AutomatonKind::Nfa};
+        std::variant<Nfa, Dfa, Efa, Pda> automaton;
+    };
+
+    RunnerPtr create(const AutomatonPlan& plan, const RegexParser& parser, Snapshot* snapshot = nullptr) const;
 };
 
 }  // namespace automata
