@@ -94,16 +94,19 @@ std::string highlightMatches(const std::string& sequence,
     for (const auto& match : matches) {
         std::size_t start = std::min(match.first, sequence.size());
         std::size_t end = std::min(match.second, sequence.size());
+        if (end <= start || end <= cursor) {
+            continue;
+        }
         if (start > cursor) {
             result.append(sequence.substr(cursor, start - cursor));
+        } else if (start < cursor) {
+            start = cursor;
         }
-        if (end > start) {
-            const char* color = palette[paletteIndex % palette.size()];
-            ++paletteIndex;
-            result.append(color);
-            result.append(sequence.substr(start, end - start));
-            result.append(resetColor(true));
-        }
+        const char* color = palette[paletteIndex % palette.size()];
+        ++paletteIndex;
+        result.append(color);
+        result.append(sequence.substr(start, end - start));
+        result.append(resetColor(true));
         cursor = end;
     }
     if (cursor < sequence.size()) {
