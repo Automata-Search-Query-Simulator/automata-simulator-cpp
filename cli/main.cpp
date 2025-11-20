@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <vector>
@@ -231,13 +232,120 @@ std::string serializeDfa(const Dfa& dfa) {
 std::string serializeEfa(const Efa& efa) {
     std::ostringstream out;
     out << "{\"kind\":\"EFA\",\"pattern\":\"" << jsonEscape(efa.literalPattern) << "\",\"mismatchBudget\":"
-        << efa.mismatchBudget << "}";
+        << efa.mismatchBudget << ",\"start\":0,\"states\":[";
+    
+    const std::size_t patternLength = efa.literalPattern.size();
+    const std::size_t maxStates = (patternLength + 1) * (efa.mismatchBudget + 1);
+    
+    for (std::size_t stateId = 0; stateId < maxStates; ++stateId) {
+        const std::size_t position = stateId / (efa.mismatchBudget + 1);
+        const std::size_t mismatches = stateId % (efa.mismatchBudget + 1);
+        const bool isAccept = (position == patternLength && mismatches <= efa.mismatchBudget);
+        
+        out << "{\"id\":" << stateId << ",\"accept\":" << (isAccept ? "true" : "false")
+            << ",\"position\":" << position << ",\"mismatches\":" << mismatches << ",\"transitions\":[";
+        
+        if (position < patternLength) {
+            bool first = true;
+            // Match transition: exact match with pattern character
+            const char expectedChar = efa.literalPattern[position];
+            const std::size_t matchStateId = (position + 1) * (efa.mismatchBudget + 1) + mismatches;
+            out << "{\"code\":" << static_cast<int>(static_cast<unsigned char>(expectedChar))
+                << ",\"symbol\":\"" << charToJson(expectedChar) << "\",\"to\":" << matchStateId
+                << ",\"type\":\"match\"}";
+            first = false;
+            
+            // Mismatch transitions: any character that doesn't match (if budget allows)
+            if (mismatches < efa.mismatchBudget) {
+                const std::size_t mismatchStateId = (position + 1) * (efa.mismatchBudget + 1) + (mismatches + 1);
+                // Extract relevant alphabet from pattern (typically DNA: A,C,G,T)
+                std::set<char> alphabet;
+                for (char c : efa.literalPattern) {
+                    alphabet.insert(c);
+                }
+                // Add common DNA/RNA characters if not already present
+                for (char c : {'A', 'C', 'G', 'T', 'U'}) {
+                    alphabet.insert(c);
+                }
+                
+                // Generate transitions only for relevant alphabet characters
+                for (char c : alphabet) {
+                    if (c != expectedChar) {
+                        if (!first) {
+                            out << ",";
+                        }
+                        first = false;
+                        out << "{\"code\":" << static_cast<int>(static_cast<unsigned char>(c))
+                            << ",\"symbol\":\"" << charToJson(c) << "\",\"to\":" << mismatchStateId
+                            << ",\"type\":\"mismatch\"}";
+                    }
+                }
+                // Add wildcard for all other characters
+                if (!first) {
+                    out << ",";
+                }
+                out << "{\"code\":-1,\"symbol\":\"*\",\"to\":" << mismatchStateId
+                    << ",\"type\":\"mismatch\",\"wildcard\":true}";
+            }
+        }
+        
+        out << "]}";
+        if (stateId + 1 < maxStates) {
+            out << ",";
+        }
+    }
+    
+    out << "]}";
     return out.str();
 }
 
 std::string serializePda(const Pda& pda) {
     std::ostringstream out;
-    out << "{\"kind\":\"PDA\",\"rules\":[";
+    out << "{\"kind\":\"PDA\",\"start\":0,\"states\":[";
+    
+    // PDA states represent stack depth (0 = empty stack, 1+ = stack depth)
+    // For visualization, we'll model up to a reasonable max depth (e.g., 10)
+    // In practice, the PDA can handle any depth, but we show a representative subset
+    const std::size_t maxDepth = 10;
+    
+    for (std::size_t depth = 0; depth <= maxDepth; ++depth) {
+        const bool isAccept = (depth == 0); // Accept only when stack is empty
+        out << "{\"id\":" << depth << ",\"accept\":" << (isAccept ? "true" : "false")
+            << ",\"stackDepth\":" << depth << ",\"transitions\":[";
+        
+        bool first = true;
+        
+        // '(' transition: push (increase stack depth)
+        if (depth < maxDepth) {
+            out << "{\"code\":" << static_cast<int>('(') << ",\"symbol\":\"(\",\"to\":" << (depth + 1)
+                << ",\"operation\":\"push\"}";
+            first = false;
+        }
+        
+        // ')' transition: pop (decrease stack depth, only if depth > 0)
+        if (depth > 0) {
+            if (!first) {
+                out << ",";
+            }
+            out << "{\"code\":" << static_cast<int>(')') << ",\"symbol\":\")\",\"to\":" << (depth - 1)
+                << ",\"operation\":\"pop\"}";
+            first = false;
+        }
+        
+        // '.' transition: ignore (stay at same depth)
+        if (!first) {
+            out << ",";
+        }
+        out << "{\"code\":" << static_cast<int>('.') << ",\"symbol\":\".\",\"to\":" << depth
+            << ",\"operation\":\"ignore\"}";
+        
+        out << "]}";
+        if (depth < maxDepth) {
+            out << ",";
+        }
+    }
+    
+    out << "],\"rules\":[";
     for (std::size_t i = 0; i < pda.rules.size(); ++i) {
         out << "{\"expected\":\"" << charToJson(pda.rules[i].expected) << "\"}";
         if (i + 1 < pda.rules.size()) {
