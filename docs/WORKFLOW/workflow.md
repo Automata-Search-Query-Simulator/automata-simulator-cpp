@@ -30,6 +30,7 @@ Mirrors `src/` structure with corresponding header files (.hpp) that define inte
 
 #### `cli/` - Command-Line Interface
 - **`main.cpp`** - Entry point, argument parsing, orchestration
+- **`AutomatonSerializer.cpp/.hpp`** - JSON snapshot serialization for `--dump-automaton`
 - **`config.yaml`** - Default CLI configuration
 
 #### `tests/` - Test Suite
@@ -121,8 +122,9 @@ Python Flask application that wraps the C++ simulator for web integration:
 - **`main.cpp`** - Main entry point:
   - Parses command-line arguments (`--pattern`, `--mode`, `--k`, `--input`, etc.)
   - Orchestrates workflow: load → dispatch → build → run → report
-  - Handles JSON serialization for `--dump-automaton`
+  - Delegates JSON serialization for `--dump-automaton` to `AutomatonSerializer`
   - Formats colored terminal output
+- **`AutomatonSerializer.cpp/.hpp`** - Shared helpers that convert `RunnerFactory::Snapshot` instances (NFA/DFA/EFA/PDA) into JSON emitted by `--dump-automaton`
 
 ### Header Files (`include/`)
 
@@ -430,4 +432,98 @@ The automata simulator follows a modular architecture where:
 6. **Reporters** format and aggregate results
 
 Each mode (NFA, DFA, EFA, PDA) follows the same high-level flow but uses different builders and runners optimized for their specific use case. The system is designed to be extensible: adding a new automaton type requires implementing a builder, runner, and updating the factory/dispatcher.
+
+---
+
+## Detailed File Reference (Folder by Folder)
+
+Each subsection lists every file within the folder and its specific responsibility. Paths are relative to the repo root.
+
+### `cli/`
+- `cli/main.cpp` — Parses arguments, loads datasets through `DatasetLoader`, invokes `ModeDispatcher`, creates runners via `RunnerFactory`, runs sequences, prints results, and calls `AutomatonSerializer` for `--dump-automaton`.
+- `cli/AutomatonSerializer.hpp` — Declares `serializeSnapshot` plus forward declarations for converter helpers.
+- `cli/AutomatonSerializer.cpp` — Implements `serializeSnapshot`, `serializeNfa/Dfa/Efa/Pda`, and utility helpers (`jsonEscape`, `edgeTypeToString`, `charToJson`). Produces JSON consumed by CLI dumping.
+- `cli/config.yaml` — Default CLI configuration stub; documents expected flags for downstream wrappers.
+
+### `src/automata/builders/`
+- `src/automata/builders/NfaBuilder.cpp` — Converts regex postfix tokens to `Nfa`. Handles concatenation, alternation, Kleene star, and literal edges.
+- `src/automata/builders/DfaBuilder.cpp` — Implements subset construction from `Nfa` to deterministic `Dfa`, including epsilon-closure logic and transition table emission.
+- `src/automata/builders/EfaBuilder.cpp` — Generates `Efa` graphs modeling `(position, mismatches)` states with match/mismatch transitions capped at `k`.
+- `src/automata/builders/PdaBuilder.cpp` — Assembles pushdown automata states/rules for dot-bracket validation (push on `(`, pop on `)`, ignore `.`).
+
+### `src/automata/runners/`
+- `src/automata/runners/NfaRunner.cpp` — Simulates NFAs using `StateSet`; records matches, traces, and state counts.
+- `src/automata/runners/DfaRunner.cpp` — Runs DFAs with table lookups; no epsilon handling; tracks matches/states visited.
+- `src/automata/runners/EfaRunner.cpp` — Executes EFAs, ensuring mismatch budgets aren’t exceeded and outputs stack-depth metrics (max mismatches seen).
+- `src/automata/runners/PdaRunner.cpp` — Simulates pushdown behavior via stack depth tracking, ensuring balanced parentheses per dot-bracket rules.
+- `src/automata/runners/RunnerFactory.cpp` — Builds and returns appropriate runner based on `AutomatonPlan`, optionally capturing `RunnerFactory::Snapshot`.
+
+### `src/automata/utils/`
+- `src/automata/utils/StateSet.cpp` — Efficient state-set implementation (bitsets + BFS) for NFA epsilon-closure operations.
+- `src/automata/utils/MismatchAccounting.cpp` — Support routines for mismatch tracking in EFAs (increment/decrement budgets, guard conditions).
+
+### `src/parser/`
+- `src/parser/RegexParser.cpp` — Converts regex strings to postfix tokens; enforces syntax rules and implicit concatenation detection.
+- `src/parser/DatasetLoader.cpp` — Opens dataset files, normalizes line endings, strips whitespace, and returns vector<string> sequences.
+- `src/parser/DotBracketValidator.cpp` — Checks dot-bracket strings for valid characters and matching parentheses before PDA processing.
+
+### `src/modes/`
+- `src/modes/ModeDispatcher.cpp` — Implements `ModeDispatcher::decide`, selecting `AutomatonKind` using heuristics, dot-bracket flags, mismatch budgets, and user requests.
+- `src/modes/ModeHeuristics.cpp` — Contains scoring helpers used internally by `ModeDispatcher` (e.g., pattern complexity heuristics).
+
+### `src/reporting/`
+- `src/reporting/Reporter.cpp` — Stores `SequenceReport` entries and builds a human-readable summary across all sequences.
+- `src/reporting/MetricsAggregator.cpp` — Increments match/run/accept counters; exposes totals and `allAccepted()` for summary logic.
+- `src/reporting/TraceFormatter.cpp` — Formats `RunResult.trace` entries into readable strings and provides color/highlight utilities (`resetColor`, `colorize`, `highlightMatches`, `colorOutputEnabled`).
+
+### `src/evaluation/`
+- `src/evaluation/EvaluationHarness.cpp` — Returns canned DNA/RNA smoke datasets used when CLI input is absent.
+- `src/evaluation/PerformanceSweep.cpp` — Implements benchmark loops for performance testing (invoked by `scripts/run_perf.sh`).
+
+### `include/`
+- `include/PatternSpec.hpp` — Declares `PatternSpec` struct (pattern string, mismatch budget, trace flag, dataset paths, etc.).
+- `include/AutomatonPlan.hpp` — Defines `AutomatonPlan` (chosen `AutomatonKind` plus spec).
+- `include/IRunner.hpp` — Declares `IRunner` interface, `RunResult`, `TraceEvent`, and runner pointer alias.
+- `include/TraceEvent.hpp` — Struct definition for trace events (index + detail string).
+- `include/automata/builders/Builders.hpp` — Aggregates builder class declarations (`NfaBuilder`, `DfaBuilder`, `EfaBuilder`, `PdaBuilder`).
+- `include/automata/runners/Runners.hpp` — Declares runner classes, `RunnerFactory`, and `RunnerFactory::Snapshot`.
+- `include/automata/utils/MismatchAccounting.hpp` / `StateSet.hpp` — Headers for utility implementations.
+- `include/parser/Parsers.hpp` — Re-exports parser class declarations.
+- `include/modes/ModeDispatcher.hpp`, `include/modes/ModeHeuristics.hpp` — Interfaces for mode-selection components.
+- `include/reporting/Reporting.hpp` — Declares `MetricsAggregator`, `TraceFormatter`, `Reporter`, and color/highlight helper signatures used by CLI.
+- `include/evaluation/EvaluationHarness.hpp` — Declares smoke-test helper API.
+
+### `tests/`
+- `tests/test_main.cpp` — Orchestrates unit/integration suites by invoking each `run*Tests`.
+- `tests/unit/BuilderTests.cpp` — Verifies NFA/DFA/EFA/PDA builder behavior with focused fixtures.
+- `tests/unit/ParserTests.cpp` — Tests regex parsing, dataset loading edge cases, and dot-bracket validation failures.
+- `tests/unit/RunnerTests.cpp` — Exercises runner logic (NFA state propagation, DFA determinism, EFA mismatch handling, PDA stack validation).
+- `tests/integration/EndToEndTests.cpp` — Executes CLI-like flows end-to-end, ensuring orchestrated behavior matches expectations.
+- `tests/data/README.md` + fixtures — Describes and stores input files referenced in integration/unit tests.
+
+### `scripts/`
+- `scripts/run_perf.sh` — Builds the simulator, runs performance sweeps across automaton types, and captures timing output.
+- `scripts/seed_datasets.py` — Generates anonymized sample sequences compatible with repository policies.
+
+### `config/`
+- `config/defaults.yaml` — Documents default runtime parameters (pattern templates, budgets, etc.) for reproducibility.
+- `config/reproducibility.md` — Narrative instructions for reproducing experiments or benchmarks.
+
+### `datasets/`
+- `datasets/dna/*` — Sample DNA sequences used by CLI examples/tests.
+- `datasets/rna/*` — Sample RNA dot-bracket strings used for PDA mode.
+- `datasets/controls/*` — Miscellaneous control sequences.
+
+### `docs/`
+- `docs/workflow.md` — (this file) describes architecture and file responsibilities.
+- `docs/figures/README.md` — Lists diagrams used in documentation.
+- `docs/notes/README.md` — Collects design/development notes.
+- `docs/paper/README.md` — Provides academic paper context and references.
+
+### Root + Misc
+- `Makefile` — Wraps CMake build/test commands (`make`, `make run`, `make test`).
+- `CMakeLists.txt` — Primary CMake configuration describing targets, include paths, and compiler options.
+- `paper_context.md` — Background material for accompanying publications.
+- `AGENTS.md` — Project-specific guidelines for automation agents.
+- `tmp/` — Scratch area for generated JSON dumps (`tmp/nfa.json`, etc.); ignored by git.
 
