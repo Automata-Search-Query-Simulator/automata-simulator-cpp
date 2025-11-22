@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "IRunner.hpp"
@@ -39,5 +40,12 @@ class Reporter {
   private:
     std::vector<SequenceReport> reports_;
 };
+
+const char* resetColor(bool enabled);
+bool colorOutputEnabled();
+std::string colorize(const std::string& text, const char* color, bool enabled);
+std::string highlightMatches(const std::string& sequence,
+                             std::vector<std::pair<std::size_t, std::size_t>> matches,
+                             bool colorizeOutput);
 
 }  // namespace automata
