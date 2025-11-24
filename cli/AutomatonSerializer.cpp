@@ -123,65 +123,8 @@ std::string serializeDfa(const Dfa& dfa) {
 
 std::string serializeEfa(const Efa& efa) {
     std::ostringstream out;
-    out << "{\"kind\":\"EFA\",\"pattern\":\"" << jsonEscape(efa.literalPattern) << "\",\"mismatchBudget\":"
-        << efa.mismatchBudget << ",\"start\":0,\"states\":[";
-
-    const std::size_t patternLength = efa.literalPattern.size();
-    const std::size_t maxStates = (patternLength + 1) * (efa.mismatchBudget + 1);
-
-    for (std::size_t stateId = 0; stateId < maxStates; ++stateId) {
-        const std::size_t position = stateId / (efa.mismatchBudget + 1);
-        const std::size_t mismatches = stateId % (efa.mismatchBudget + 1);
-        const bool isAccept = (position == patternLength && mismatches <= efa.mismatchBudget);
-
-        out << "{\"id\":" << stateId << ",\"accept\":" << (isAccept ? "true" : "false")
-            << ",\"position\":" << position << ",\"mismatches\":" << mismatches << ",\"transitions\":[";
-
-        if (position < patternLength) {
-            bool first = true;
-            const char expectedChar = efa.literalPattern[position];
-            const std::size_t matchStateId = (position + 1) * (efa.mismatchBudget + 1) + mismatches;
-            out << "{\"code\":" << static_cast<int>(static_cast<unsigned char>(expectedChar))
-                << ",\"symbol\":\"" << charToJson(expectedChar) << "\",\"to\":" << matchStateId
-                << ",\"type\":\"match\"}";
-            first = false;
-
-            if (mismatches < efa.mismatchBudget) {
-                const std::size_t mismatchStateId = (position + 1) * (efa.mismatchBudget + 1) + (mismatches + 1);
-                std::set<char> alphabet;
-                for (char c : efa.literalPattern) {
-                    alphabet.insert(c);
-                }
-                for (char c : {'A', 'C', 'G', 'T', 'U'}) {
-                    alphabet.insert(c);
-                }
-
-                for (char c : alphabet) {
-                    if (c != expectedChar) {
-                        if (!first) {
-                            out << ",";
-                        }
-                        first = false;
-                        out << "{\"code\":" << static_cast<int>(static_cast<unsigned char>(c))
-                            << ",\"symbol\":\"" << charToJson(c) << "\",\"to\":" << mismatchStateId
-                            << ",\"type\":\"mismatch\"}";
-                    }
-                }
-                if (!first) {
-                    out << ",";
-                }
-                out << "{\"code\":-1,\"symbol\":\"*\",\"to\":" << mismatchStateId
-                    << ",\"type\":\"mismatch\",\"wildcard\":true}";
-            }
-        }
-
-        out << "]}";
-        if (stateId + 1 < maxStates) {
-            out << ",";
-        }
-    }
-
-    out << "]}";
+    out << "{\"kind\":\"EFA\",\"pattern\":\"" << jsonEscape(efa.pattern) << "\",\"mismatchBudget\":"
+        << efa.mismatchBudget << ",\"nfa\":" << serializeNfa(efa.automaton) << "}";
     return out.str();
 }
 

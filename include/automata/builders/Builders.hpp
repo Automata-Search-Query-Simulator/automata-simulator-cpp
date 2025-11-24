@@ -57,13 +57,18 @@ class DfaBuilder {
 };
 
 struct Efa {
-    std::string literalPattern;
+    Nfa automaton;
     std::size_t mismatchBudget{0};
+    std::string pattern;
 };
 
 class EfaBuilder {
   public:
+    explicit EfaBuilder(const RegexParser& parser);
     Efa build(const std::string& pattern, std::size_t mismatchBudget) const;
+
+  private:
+    const RegexParser& parser_;
 };
 
 struct PdaRule {

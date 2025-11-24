@@ -14,10 +14,11 @@ void runBuilderTests() {
     auto dfa = dfaBuilder.build(nfa);
     assert(!dfa.states.empty());
 
-    EfaBuilder efaBuilder;
+    EfaBuilder efaBuilder(parser);
     auto efa = efaBuilder.build("ACGT", 2);
-    assert(efa.literalPattern == "ACGT");
+    assert(efa.pattern == "ACGT");
     assert(efa.mismatchBudget == 2);
+    assert(!efa.automaton.states.empty());
 
     PdaBuilder pdaBuilder;
     auto pda = pdaBuilder.build();

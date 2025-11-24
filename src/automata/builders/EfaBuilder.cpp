@@ -4,16 +4,15 @@
 
 namespace automata {
 
+EfaBuilder::EfaBuilder(const RegexParser& parser) : parser_(parser) {}
+
 Efa EfaBuilder::build(const std::string& pattern, std::size_t mismatchBudget) const {
     if (pattern.empty()) {
-        throw std::runtime_error("Approximate matching requires a non-empty literal pattern.");
+        throw std::runtime_error("Approximate matching requires a non-empty pattern.");
     }
-    for (char c : pattern) {
-        if (c == '(' || c == ')' || c == '[' || c == ']' || c == '*' || c == '+' || c == '?' || c == '|') {
-            throw std::runtime_error("EFA builder currently supports literal patterns only.");
-        }
-    }
-    return Efa{pattern, mismatchBudget};
+    NfaBuilder builder(parser_);
+    auto nfa = builder.build(pattern);
+    return Efa{std::move(nfa), mismatchBudget, pattern};
 }
 
 }  // namespace automata
