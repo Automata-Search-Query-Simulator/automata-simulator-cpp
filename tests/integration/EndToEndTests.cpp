@@ -30,6 +30,15 @@ void runIntegrationTests() {
     auto efaResult = efaRunner->run("ACCT");
     assert(!efaResult.matches.empty());
 
+    PatternSpec efaRegexSpec = spec;
+    efaRegexSpec.pattern = "A(CG|TT)*";
+    efaRegexSpec.mismatchBudget = 1;
+    efaRegexSpec.requestedMode = ModePreference::Efa;
+    plan = dispatcher.decide(efaRegexSpec);
+    auto efaRegexRunner = factory.create(plan, parser);
+    auto efaRegexResult = efaRegexRunner->run("ATGTTG");
+    assert(!efaRegexResult.matches.empty());
+
     PatternSpec pdaSpec;
     pdaSpec.allowDotBracket = true;
     pdaSpec.requestedMode = ModePreference::Pda;

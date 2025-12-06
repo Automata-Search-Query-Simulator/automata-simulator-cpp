@@ -24,7 +24,7 @@ RunnerPtr RunnerFactory::create(const AutomatonPlan& plan, const RegexParser& pa
             return std::make_unique<DfaRunner>(std::move(dfa), plan.spec.trace);
         }
         case AutomatonKind::Efa: {
-            EfaBuilder builder;
+            EfaBuilder builder(parser);
             auto efa = builder.build(plan.spec.pattern, plan.spec.mismatchBudget);
             if (snapshot) {
                 snapshot->kind = AutomatonKind::Efa;

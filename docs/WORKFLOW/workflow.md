@@ -268,17 +268,12 @@ Mirror structure of `src/` with corresponding `.hpp` files:
 **Flow**:
 1. `PatternSpec` has `mismatchBudget > 0` (e.g., `--k 2`)
 2. `ModeDispatcher` selects `AutomatonKind::Efa` (or explicit `--mode efa`)
-3. Pattern is treated as literal string (not regex)
-4. `EfaBuilder` constructs EFA:
-   - States: `(position, mismatches)` pairs
-   - Position: 0 to pattern_length
-   - Mismatches: 0 to k
-   - Transitions:
-     - **Match**: `(pos, m) → (pos+1, m)` on exact character
-     - **Mismatch**: `(pos, m) → (pos+1, m+1)` on any other character (if m < k)
+3. `RegexParser` compiles the regex into an NFA (same pipeline as Mode 1)
+4. `EfaBuilder` stores the NFA alongside the mismatch budget (no literal-only restriction)
 5. `EfaRunner` simulates:
-   - Tracks current position and mismatch count
-   - Accepts when `position == pattern_length && mismatches <= k`
+   - Tracks active NFA states for every mismatch tier `m = 0…k`
+   - Consuming edges may either match (no cost) or mismatch (cost +1 up to budget)
+   - Accepts when an NFA accept state is reachable within the budget
    - Records all valid match positions
 6. `Reporter` outputs approximate matches
 

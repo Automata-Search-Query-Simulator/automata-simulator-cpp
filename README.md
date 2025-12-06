@@ -24,7 +24,7 @@ Set `SIM_ARGS` to control CLI flags; defaults target `datasets/dna/sample.txt`.
 make run                                               # uses default args (ACGT vs sample DNA file)
 make run SIM_ARGS='--pattern "A(CG|TT)*" --trace'      # override args (auto-mode search with traces)
 make run SIM_ARGS='--mode efa --pattern ACGT --k 2 \
-                   --input datasets/dna/sample.txt'    # approximate matching
+                   --input datasets/dna/sample.txt'    # approximate matching (regex supported)
 make run SIM_ARGS='--mode pda --dot-bracket \
                    --input datasets/rna/sample.txt'    # dot-bracket validation
 ```

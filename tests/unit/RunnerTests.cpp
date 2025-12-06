@@ -24,10 +24,24 @@ void runRunnerTests() {
         assert(!result.matches.empty());
     }
     {
-        EfaBuilder builder;
+        EfaBuilder builder(parser);
         auto efa = builder.build("ACG", 1);
         EfaRunner runner(std::move(efa), false);
         auto result = runner.run("ACCAT");
+        assert(!result.matches.empty());
+    }
+    {
+        EfaBuilder builder(parser);
+        auto efa = builder.build("A(CG|TT)", 1);
+        EfaRunner runner(std::move(efa), false);
+        auto result = runner.run("ACT");
+        assert(!result.matches.empty());
+    }
+    {
+        EfaBuilder builder(parser);
+        auto efa = builder.build("A(CG|TT)*G", 1);
+        EfaRunner runner(std::move(efa), false);
+        auto result = runner.run("ATGTTG");
         assert(!result.matches.empty());
     }
     {
