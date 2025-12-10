@@ -130,36 +130,35 @@ std::string serializeEfa(const Efa& efa) {
 
 std::string serializePda(const Pda& pda) {
     std::ostringstream out;
-    out << "{\"kind\":\"PDA\",\"start\":0,\"states\":[";
+    out << "{\"kind\":\"PDA\",\"start\":" << pda.start << ",\"states\":[";
 
-    const std::size_t maxDepth = 10;
-    for (std::size_t depth = 0; depth <= maxDepth; ++depth) {
-        const bool isAccept = (depth == 0);
-        out << "{\"id\":" << depth << ",\"accept\":" << (isAccept ? "true" : "false")
-            << ",\"stackDepth\":" << depth << ",\"transitions\":[";
+    for (std::size_t i = 0; i < pda.states.size(); ++i) {
+        const auto& state = pda.states[i];
+        out << "{\"id\":" << state.id << ",\"accept\":" << (state.accept ? "true" : "false")
+            << ",\"stackDepth\":" << state.stackDepth << ",\"transitions\":[";
 
-        bool first = true;
-        if (depth < maxDepth) {
-            out << "{\"code\":" << static_cast<int>('(') << ",\"symbol\":\"(\",\"to\":" << (depth + 1)
-                << ",\"operation\":\"push\"}";
-            first = false;
-        }
-        if (depth > 0) {
-            if (!first) {
+        for (std::size_t j = 0; j < state.transitions.size(); ++j) {
+            const auto& trans = state.transitions[j];
+            std::string opStr;
+            switch (trans.operation) {
+                case PdaOperation::Push:
+                    opStr = "push";
+                    break;
+                case PdaOperation::Pop:
+                    opStr = "pop";
+                    break;
+                case PdaOperation::Ignore:
+                    opStr = "ignore";
+                    break;
+            }
+            out << "{\"code\":" << trans.code << ",\"symbol\":\"" << charToJson(trans.symbol)
+                << "\",\"to\":" << trans.to << ",\"operation\":\"" << opStr << "\"}";
+            if (j + 1 < state.transitions.size()) {
                 out << ",";
             }
-            out << "{\"code\":" << static_cast<int>(')') << ",\"symbol\":\")\",\"to\":" << (depth - 1)
-                << ",\"operation\":\"pop\"}";
-            first = false;
         }
-        if (!first) {
-            out << ",";
-        }
-        out << "{\"code\":" << static_cast<int>('.') << ",\"symbol\":\".\",\"to\":" << depth
-            << ",\"operation\":\"ignore\"}";
-
         out << "]}";
-        if (depth < maxDepth) {
+        if (i + 1 < pda.states.size()) {
             out << ",";
         }
     }

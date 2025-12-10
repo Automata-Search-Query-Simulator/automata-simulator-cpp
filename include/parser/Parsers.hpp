@@ -26,6 +26,7 @@ class DatasetLoader {
 class DotBracketValidator {
   public:
     bool validate(const std::string& sequence) const;
+    std::size_t getMaxDepth(const std::string& sequence) const;
 };
 
 }  // namespace automata

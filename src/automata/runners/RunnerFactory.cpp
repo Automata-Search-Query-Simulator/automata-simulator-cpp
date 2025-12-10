@@ -1,4 +1,5 @@
 #include "automata/runners/Runners.hpp"
+#include "parser/Parsers.hpp"
 
 namespace automata {
 
@@ -34,7 +35,18 @@ RunnerPtr RunnerFactory::create(const AutomatonPlan& plan, const RegexParser& pa
         }
         case AutomatonKind::Pda: {
             PdaBuilder builder;
-            auto pda = builder.build();
+            
+            // Calculate max depth from input sequences
+            DotBracketValidator validator;
+            std::size_t maxDepth = 1;  // Minimum depth
+            for (const auto& seq : plan.spec.datasets) {
+                std::size_t seqDepth = validator.getMaxDepth(seq);
+                if (seqDepth > maxDepth) {
+                    maxDepth = seqDepth;
+                }
+            }
+            
+            auto pda = builder.build(maxDepth);
             if (snapshot) {
                 snapshot->kind = AutomatonKind::Pda;
                 snapshot->automaton = pda;

@@ -75,13 +75,35 @@ struct PdaRule {
     char expected;
 };
 
+enum class PdaOperation { Push, Pop, Ignore };
+
+struct PdaTransition {
+    char symbol;
+    int code;  // ASCII code
+    int to;
+    PdaOperation operation;
+};
+
+struct PdaState {
+    int id;
+    int stackDepth;
+    bool accept;
+    std::vector<PdaTransition> transitions;
+};
+
 struct Pda {
+    int start{0};
     std::vector<PdaRule> rules;
+    std::vector<PdaState> states;
 };
 
 class PdaBuilder {
   public:
     Pda build() const;
+    Pda build(std::size_t maxDepth) const;
 };
+
+// Helper to build PDA states up to a given max depth
+Pda buildPdaStates(std::size_t maxDepth);
 
 }  // namespace automata

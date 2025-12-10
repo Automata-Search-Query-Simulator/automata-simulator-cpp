@@ -21,4 +21,24 @@ bool DotBracketValidator::validate(const std::string& sequence) const {
     return balance == 0;
 }
 
+std::size_t DotBracketValidator::getMaxDepth(const std::string& sequence) const {
+    std::size_t currentDepth = 0;
+    std::size_t maxDepth = 0;
+    for (char c : sequence) {
+        if (c == '(') {
+            ++currentDepth;
+            if (currentDepth > maxDepth) {
+                maxDepth = currentDepth;
+            }
+        } else if (c == ')') {
+            if (currentDepth == 0) {
+                return 0;  // Invalid: closing without opening
+            }
+            --currentDepth;
+        }
+        // Ignore '.' and other characters
+    }
+    return maxDepth;
+}
+
 }  // namespace automata
