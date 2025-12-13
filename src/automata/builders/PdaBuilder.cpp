@@ -55,6 +55,7 @@ Pda PdaBuilder::build() const {
 Pda PdaBuilder::build(std::size_t maxDepth) const {
     // Build PDA with dynamic max depth
     return buildPdaStates(maxDepth);
+
 }
 
 }  // namespace automata
