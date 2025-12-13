@@ -15,6 +15,10 @@ struct PatternSpec {
     std::size_t mismatchBudget{0};
     bool trace{false};
     bool allowDotBracket{false};
+    
+    // RNA validation
+    std::string rnaSecondaryStructure;  // Dot-bracket notation
+    
     ModePreference requestedMode{ModePreference::Auto};
 };
 

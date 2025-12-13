@@ -44,10 +44,15 @@ class PdaRunner : public IRunner {
   public:
     PdaRunner(Pda pda, bool trace);
     RunResult run(const std::string& input) override;
+    
+    void setRnaValidation(const std::string& secondary) {
+        rnaSecondary_ = secondary;
+    }
 
   private:
     Pda pda_;
     bool trace_;
+    std::string rnaSecondary_;
 };
 
 class RunnerFactory {
