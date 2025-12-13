@@ -50,11 +50,24 @@ std::string kindToString(AutomatonKind kind) {
     return "Unknown";
 }
 
+std::string readFirstLineFromFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open: " + path);
+    }
+    std::string line;
+    if (std::getline(file, line)) {
+        return line;
+    }
+    throw std::runtime_error("Empty file: " + path);
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
     PatternSpec spec;
     std::string inputPath;
+    std::string secondaryPath;
     std::string dumpAutomatonPath;
     const bool colorEnabled = colorOutputEnabled();
 
@@ -72,6 +85,18 @@ int main(int argc, char** argv) {
             spec.requestedMode = parseMode(argv[++i]);
         } else if (arg == "--dot-bracket") {
             spec.allowDotBracket = true;
+        } else if (arg == "--rna") {
+            spec.requestedMode = ModePreference::Pda;
+        } else if (arg == "--secondary" && i + 1 < argc) {
+            std::string val = argv[++i];
+            // Check if it's an existing file path
+            std::ifstream testFile(val);
+            if (testFile.good()) {
+                testFile.close();
+                secondaryPath = val;
+            } else {
+                spec.rnaSecondaryStructure = val;
+            }
         } else if (arg == "--dump-automaton" && i + 1 < argc) {
             dumpAutomatonPath = argv[++i];
         } else {
@@ -85,6 +110,11 @@ int main(int argc, char** argv) {
         if (!inputPath.empty()) {
             spec.datasetPath = inputPath;
             spec.datasets = loader.loadSequences(inputPath);
+        }
+        
+        // Load secondary structure from file if provided
+        if (!secondaryPath.empty()) {
+            spec.rnaSecondaryStructure = readFirstLineFromFile(secondaryPath);
         }
     } catch (const std::exception& ex) {
         std::cerr << "Failed to load dataset: " << ex.what() << "\n";
@@ -137,13 +167,61 @@ int main(int argc, char** argv) {
             const auto& sequence = plan.spec.datasets[index];
             const auto seqLabel = "Sequence #" + std::to_string(index + 1);
             std::cout << colorize(seqLabel, "\033[93m", colorEnabled) << " (len=" << sequence.size() << ")\n";
+            
+            // Display RNA info if in RNA mode
+            if (!spec.rnaSecondaryStructure.empty()) {
+                std::cout << "  Sequence:    " << sequence << "\n";
+                std::cout << "  Dot-bracket: " << spec.rnaSecondaryStructure << "\n\n";
+            }
+            
             auto result = runner->run(sequence);
             metrics.record(result);
             reporter.add({sequence.substr(0, std::min<std::size_t>(sequence.size(), 40)), result});
-            if (spec.trace) {
+            
+            // Display RNA validation results
+            if (result.isRnaValidation) {
+                // Check for length mismatch first
+                if (sequence.size() != spec.rnaSecondaryStructure.size()) {
+                    std::cout << "  [FAIL] Length Mismatch!\n";
+                    std::cout << "  Sequence length: " << sequence.size() << "\n";
+                    std::cout << "  Structure length: " << spec.rnaSecondaryStructure.size() << "\n";
+                    std::cout << "  -> Result: Invalid\n\n";
+                } else {
+                    // Check if sequence is valid RNA
+                    bool isValidRna = true;
+                    std::string invalidChars;
+                    for (char c : sequence) {
+                        char upper = std::toupper(c);
+                        if (upper != 'A' && upper != 'U' && upper != 'C' && upper != 'G') {
+                            isValidRna = false;
+                            invalidChars += c;
+                        }
+                    }
+                    
+                    if (!isValidRna) {
+                    std::cout << "  [FAIL] Invalid RNA Sequence!\n";
+                    std::cout << "  RNA can only contain: A, U, C, G\n";
+                    std::cout << "  Invalid characters found: " << invalidChars << "\n";
+                    std::cout << "  -> Result: Invalid\n\n";
+                } else {
+                    std::cout << "  [OK] Valid RNA Bases\n";
+                    std::cout << "  Check:\n";
+                    for (const auto& bp : result.basePairs) {
+                        const char* mark = bp.valid ? "[OK]" : "[FAIL]";
+                        std::cout << "  - " << (bp.pos1 + 1) << "th nucleotide " << bp.base1
+                                  << " <-> " << (bp.pos2 + 1) << "th nucleotide " << bp.base2
+                                  << " -> " << (bp.valid ? "valid" : "invalid") << "? " << mark << "\n";
+                    }
+                    const char* parenMark = result.rnaParenthesesValid ? "[OK]" : "[FAIL]";
+                    std::cout << "  - Parentheses balanced? " << parenMark << "\n";
+                    std::cout << "  -> Result: " << colorize(result.accepted ? "Valid" : "Invalid",
+                                                            result.accepted ? "\033[32m" : "\033[31m",
+                                                            colorEnabled) << "\n\n";
+                    }
+                }
+            } else if (spec.trace) {
                 std::cout << formatter.format(result);
-            }
-            if (!result.matches.empty()) {
+            } else if (!result.matches.empty()) {
                 std::cout << colorize("  Matches: ", "\033[32m", colorEnabled);
                 for (const auto& match : result.matches) {
                     std::cout << "[" << match.first << "," << match.second << ") ";
@@ -153,11 +231,14 @@ int main(int argc, char** argv) {
             } else {
                 std::cout << colorize("  No matches found.", "\033[31m", colorEnabled) << "\n";
             }
-            std::cout << "  States visited: " << result.statesVisited;
-            if (plan.kind == AutomatonKind::Pda) {
-                std::cout << " | Max stack depth: " << result.stackDepth;
+            
+            if (!result.isRnaValidation) {
+                std::cout << "  States visited: " << result.statesVisited;
+                if (plan.kind == AutomatonKind::Pda) {
+                    std::cout << " | Max stack depth: " << result.stackDepth;
+                }
+                std::cout << "\n\n";
             }
-            std::cout << "\n\n";
         }
 
         const bool accepted = metrics.allAccepted();

@@ -1,4 +1,5 @@
 #include "automata/runners/Runners.hpp"
+#include "parser/Parsers.hpp"
 
 namespace automata {
 
@@ -39,12 +40,41 @@ RunnerPtr RunnerFactory::create(const AutomatonPlan& plan, const RegexParser& pa
         case AutomatonKind::Pda: {
             // balanced-parentheses detector living in PDA land
             PdaBuilder builder;
-            auto pda = builder.build();
+            
+            // Calculate max depth from input sequences or RNA secondary structure
+            DotBracketValidator validator;
+            std::size_t maxDepth = 1;
+            
+            // Use RNA secondary structure if available, otherwise use datasets
+            const std::string& dotBracket = plan.spec.rnaSecondaryStructure.empty() 
+                ? (plan.spec.datasets.empty() ? "" : plan.spec.datasets[0])
+                : plan.spec.rnaSecondaryStructure;
+            
+            if (!dotBracket.empty()) {
+                maxDepth = validator.getMaxDepth(dotBracket);
+            }
+            
+            for (const auto& seq : plan.spec.datasets) {
+                std::size_t seqDepth = validator.getMaxDepth(seq);
+                if (seqDepth > maxDepth) {
+                    maxDepth = seqDepth;
+                }
+            }
+            
+            auto pda = builder.build(maxDepth);
             if (snapshot) {
                 snapshot->kind = AutomatonKind::Pda;
                 snapshot->automaton = pda;
             }
-            return std::make_unique<PdaRunner>(std::move(pda), plan.spec.trace);
+            
+            auto pdaRunner = std::make_unique<PdaRunner>(std::move(pda), plan.spec.trace);
+            
+            // Set RNA validation if secondary structure provided
+            if (!plan.spec.rnaSecondaryStructure.empty()) {
+                pdaRunner->setRnaValidation(plan.spec.rnaSecondaryStructure);
+            }
+            
+            return pdaRunner;
         }
     }
     return nullptr;
