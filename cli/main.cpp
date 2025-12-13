@@ -89,8 +89,10 @@ int main(int argc, char** argv) {
             spec.requestedMode = ModePreference::Pda;
         } else if (arg == "--secondary" && i + 1 < argc) {
             std::string val = argv[++i];
-            // Detect if it's a file path
-            if (val.find_first_of("./\\") != std::string::npos) {
+            // Check if it's an existing file path
+            std::ifstream testFile(val);
+            if (testFile.good()) {
+                testFile.close();
                 secondaryPath = val;
             } else {
                 spec.rnaSecondaryStructure = val;
