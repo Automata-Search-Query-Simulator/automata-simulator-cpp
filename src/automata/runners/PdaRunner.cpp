@@ -31,10 +31,17 @@ RunResult PdaRunner::run(const std::string& input) {
     RunResult result;
     
     // RNA validation mode
-    if (!rnaSecondary_.empty() && input.size() == rnaSecondary_.size()) {
+    if (!rnaSecondary_.empty()) {
         result.isRnaValidation = true;
         
-        // First, validate that this is actual RNA (only A, U, C, G)
+        // Check length mismatch first
+        if (input.size() != rnaSecondary_.size()) {
+            result.accepted = false;
+            result.rnaParenthesesValid = false;
+            return result;
+        }
+        
+        // Validate that this is actual RNA (only A, U, C, G)
         if (!isValidRnaSequence(input)) {
             result.accepted = false;
             result.rnaParenthesesValid = false;

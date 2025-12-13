@@ -178,18 +178,25 @@ int main(int argc, char** argv) {
             
             // Display RNA validation results
             if (result.isRnaValidation) {
-                // Check if sequence is valid RNA first
-                bool isValidRna = true;
-                std::string invalidChars;
-                for (char c : sequence) {
-                    char upper = std::toupper(c);
-                    if (upper != 'A' && upper != 'U' && upper != 'C' && upper != 'G') {
-                        isValidRna = false;
-                        invalidChars += c;
+                // Check for length mismatch first
+                if (sequence.size() != spec.rnaSecondaryStructure.size()) {
+                    std::cout << "  [FAIL] Length Mismatch!\n";
+                    std::cout << "  Sequence length: " << sequence.size() << "\n";
+                    std::cout << "  Structure length: " << spec.rnaSecondaryStructure.size() << "\n";
+                    std::cout << "  -> Result: Invalid\n\n";
+                } else {
+                    // Check if sequence is valid RNA
+                    bool isValidRna = true;
+                    std::string invalidChars;
+                    for (char c : sequence) {
+                        char upper = std::toupper(c);
+                        if (upper != 'A' && upper != 'U' && upper != 'C' && upper != 'G') {
+                            isValidRna = false;
+                            invalidChars += c;
+                        }
                     }
-                }
-                
-                if (!isValidRna) {
+                    
+                    if (!isValidRna) {
                     std::cout << "  [FAIL] Invalid RNA Sequence!\n";
                     std::cout << "  RNA can only contain: A, U, C, G\n";
                     std::cout << "  Invalid characters found: " << invalidChars << "\n";
@@ -208,6 +215,7 @@ int main(int argc, char** argv) {
                     std::cout << "  -> Result: " << colorize(result.accepted ? "Valid" : "Invalid",
                                                             result.accepted ? "\033[32m" : "\033[31m",
                                                             colorEnabled) << "\n\n";
+                    }
                 }
             } else if (spec.trace) {
                 std::cout << formatter.format(result);
