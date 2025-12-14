@@ -69,6 +69,7 @@ int main(int argc, char** argv) {
     std::string inputPath;
     std::string secondaryPath;
     std::string dumpAutomatonPath;
+    std::vector<std::string> inlineSequences;
     const bool colorEnabled = colorOutputEnabled();
 
     for (int i = 1; i < argc; ++i) {
@@ -97,6 +98,8 @@ int main(int argc, char** argv) {
             } else {
                 spec.rnaSecondaryStructure = val;
             }
+        } else if (arg == "--sequence" && i + 1 < argc) {
+            inlineSequences.emplace_back(argv[++i]);
         } else if (arg == "--dump-automaton" && i + 1 < argc) {
             dumpAutomatonPath = argv[++i];
         } else {
@@ -119,6 +122,10 @@ int main(int argc, char** argv) {
     } catch (const std::exception& ex) {
         std::cerr << "Failed to load dataset: " << ex.what() << "\n";
         return EXIT_FAILURE;
+    }
+
+    if (!inlineSequences.empty()) {
+        spec.datasets.insert(spec.datasets.end(), inlineSequences.begin(), inlineSequences.end());
     }
 
     if (spec.datasets.empty()) {

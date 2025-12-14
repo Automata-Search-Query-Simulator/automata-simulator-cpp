@@ -18,7 +18,7 @@ make clean      # remove build artifacts
 
 ## Running via Make
 
-Set `SIM_ARGS` to control CLI flags; defaults target `datasets/dna/sample.txt`.
+Set `SIM_ARGS` to control CLI flags; defaults target `datasets/dna/sample.txt`. Repeat `--sequence` to supply inline primary sequences without creating a dataset file.
 
 ```bash
 make run                                               # uses default args (ACGT vs sample DNA file)
@@ -27,6 +27,8 @@ make run SIM_ARGS='--mode efa --pattern ACGT --k 2 \
                    --input datasets/dna/sample.txt'    # approximate matching (regex supported)
 make run SIM_ARGS='--mode pda --dot-bracket \
                    --input datasets/rna/sample.txt'    # dot-bracket validation
+make run SIM_ARGS='--mode pda --rna --sequence ACGU \
+                   --sequence AGCU --secondary "(..)"' # inline RNA validation
 ```
 
 `NO_COLOR=1 make run …` disables ANSI colors when needed.
@@ -37,6 +39,7 @@ make run SIM_ARGS='--mode pda --dot-bracket \
 ./build/bin/automata_sim --pattern "A(CG|TT)*" --input datasets/dna/sample.txt
 ./build/bin/automata_sim --pattern ACGT --k 1 --mode efa --input datasets/dna/sample.txt
 ./build/bin/automata_sim --mode pda --dot-bracket --input datasets/rna/sample.txt
+./build/bin/automata_sim --mode pda --rna --sequence ACGU --secondary "(..)"
 ```
 
 Use `--trace` for step-by-step execution logs. Without `--input`, smoke-test sequences from `EvaluationHarness` are used.
